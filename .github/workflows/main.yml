@@ -14,12 +14,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Extract Flutter project
-        run: |
-          unzip -o My_Mistake_My_Rule_v1.zip -d project
-          cd project
-          PROJECT_DIR=$(find . -name pubspec.yaml -printf '%h\n' | head -1)
-          echo "PROJECT_DIR=$PROJECT_DIR" >> $GITHUB_ENV
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
@@ -27,18 +26,35 @@ jobs:
           flutter-version: '3.35.0'
           channel: stable
 
-      - name: Install dependencies
+      - name: Extract project
         run: |
-          cd project/$PROJECT_DIR
+          unzip -o My_Mistake_My_Rule_v1.zip -d source
+          PUBSPEC=$(find source -name pubspec.yaml -type f | head -1)
+          PROJECT_DIR=$(dirname "$PUBSPEC")
+          echo "PROJECT_DIR=$PROJECT_DIR" >> $GITHUB_ENV
+
+      - name: Create fresh Flutter Android project
+        run: |
+          flutter create --platforms=android buildapp
+
+      - name: Copy app code
+        run: |
+          rm -rf buildapp/lib
+          cp -r "$PROJECT_DIR/lib" buildapp/lib
+          cp "$PROJECT_DIR/pubspec.yaml" buildapp/pubspec.yaml
+
+      - name: Get dependencies
+        run: |
+          cd buildapp
           flutter pub get
 
       - name: Build APK
         run: |
-          cd project/$PROJECT_DIR
+          cd buildapp
           flutter build apk --release
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: My-Mistake-My-Rule-APK
-          path: project/${{ env.PROJECT_DIR }}/build/app/outputs/flutter-apk/app-release.apk
+          path: buildapp/build/app/outputs/flutter-apk/app-release.apk
